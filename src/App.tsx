@@ -47,7 +47,7 @@ function App() {
       formData.append('image', file);
 
       // 调用后端 API
-      const apiResponse = await fetch('https://image-background-remover-api.singhualee.workers.dev', {
+      const apiResponse = await fetch('https://image-background-remover-api.scaulsh.workers.dev', {
         method: 'POST',
         body: formData
       });
