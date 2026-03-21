@@ -44,7 +44,7 @@ function App() {
       const file = new File([blob], 'image.png', { type: 'image/png' });
 
       const formData = new FormData();
-      formData.append('image', file);
+      formData.append('image_file', file);
 
       // 调用后端 API
       const apiResponse = await fetch('https://image-background-remover-api.scaulsh.workers.dev', {
