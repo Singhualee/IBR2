@@ -129,6 +129,58 @@ git push -u origin master
 - **原因**：构建参数配置错误
 - **解决方案**：确保 Cloudflare Pages 的构建参数正确配置，特别是 Build output directory 为 `dist`
 
+## 前端开发踩坑记录
+
+### 1. Tailwind CSS v4 配置问题
+
+**问题描述**：页面样式完全不生效，看起来非常简陋。
+
+**原因分析**：
+- 项目使用 Tailwind CSS v4.2.2，但配置使用的是 v3 的语法
+- `@tailwind base/components/utilities` 是 v3 语法，v4 已废弃
+- `tailwind.config.js` 配置文件在 v4 中不再使用
+
+**解决方案**：
+```css
+/* v4 正确语法 - index.css */
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #3b82f6;
+  --font-family-display: 'Inter', system-ui, sans-serif;
+}
+```
+
+- 删除 `tailwind.config.js` 文件
+- 使用 `@import "tailwindcss"` 替代 `@tailwind` 指令
+- 使用 `@theme` 指令配置主题变量
+
+### 2. 页面设计优化经验
+
+**问题描述**：页面元素挤压、文字重复、字体大小混乱，缺乏现代感。
+
+**优化方案**：
+- 采用 Apple 官网风格：纯黑背景、大量留白、极简设计
+- 统一字体：使用 Inter + Apple 系统字体栈
+- 文案精简：控制在 50 字以内，突出核心价值
+- 布局居中：内容垂直水平居中，四周充足留白
+- 按钮风格：胶囊形圆角 (980px)，Apple 标准蓝色 (#2997ff)
+
+**设计规范**：
+```css
+--color-bg: #000000;           /* 纯黑背景 */
+--color-text: #f5f5f7;         /* 主文字颜色 */
+--color-text-secondary: #86868b; /* 次要文字 */
+--color-accent: #2997ff;       /* Apple 蓝色 */
+```
+
+### 3. 功能改进
+
+**新增「重新上传」按钮**：
+- 用户上传图片后，可在处理前重新选择图片
+- 按钮样式与现有设计风格匹配
+- 处理过程中自动禁用，防止误操作
+
 ## 总结
 
 本项目已完成前端和后端代码的开发，通过以下步骤即可完成部署：
