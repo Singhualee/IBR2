@@ -76,7 +76,31 @@ git push -u origin master
 
 ## 配置说明
 
-### 1. 前端 API 端点配置
+### 1. Clerk 认证配置
+
+#### 步骤 1：注册 Clerk 账号
+1. 访问 [Clerk Dashboard](https://dashboard.clerk.com)
+2. 创建新 Application
+3. 在 "SSO Providers" 中启用 Google
+4. 获取 Publishable Key
+
+#### 步骤 2：Google Cloud Console 配置
+1. 访问 [Google Cloud Console](https://console.cloud.google.com/)
+2. 创建/选择项目，启用 Google+ API
+3. 创建 OAuth 2.0 客户端 ID（Web 应用）
+4. 在 Clerk 的 Google OAuth 设置中填入 Client ID 和 Secret
+
+#### 步骤 3：配置环境变量
+创建 `.env` 文件：
+```bash
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+#### 步骤 4：Cloudflare Pages 环境变量
+在 Cloudflare Pages 的 Settings → Environment Variables 中添加：
+- `VITE_CLERK_PUBLISHABLE_KEY` = 你的 Clerk Publishable Key
+
+### 2. 前端 API 端点配置
 
 - 在前端代码中，API 端点 URL 硬编码在 `src/App.tsx` 文件中
 - 部署后，需要确保该 URL 指向正确的 Workers 端点
