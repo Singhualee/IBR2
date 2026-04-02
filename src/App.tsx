@@ -1,8 +1,10 @@
 import { useState, useCallback } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import { useAuth, useSignIn, SignedIn, SignedOut } from '@clerk/clerk-react';
+import SSOCallback from './SSOCallback';
 
-function App() {
+function HomePage() {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [processedImage, setProcessedImage] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -83,7 +85,7 @@ function App() {
     try {
       await signIn.authenticateWithRedirect({
         strategy: 'oauth_google',
-        redirectUrl: '/',
+        redirectUrl: '/sso-callback',
         redirectUrlComplete: '/',
       });
     } catch (err) {
@@ -92,7 +94,6 @@ function App() {
     }
   };
 
-  // Loading state
   if (!isLoaded) {
     return (
       <div className="app">
@@ -244,4 +245,14 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/sso-callback" element={<SSOCallback />} />
+        <Route path="/" element={<HomePage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
