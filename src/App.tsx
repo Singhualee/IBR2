@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
-import { useAuth, useSignIn, SignedIn, SignedOut } from '@clerk/clerk-react';
+import { useAuth, useSignIn, useUser, SignedIn, SignedOut } from '@clerk/clerk-react';
 import SSOCallback from './SSOCallback';
 
 function HomePage() {
@@ -9,8 +9,9 @@ function HomePage() {
   const [processedImage, setProcessedImage] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const { isLoaded } = useAuth();
+  const { isLoaded, signOut } = useAuth();
   const { signIn } = useSignIn();
+  const { user } = useUser();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -143,6 +144,17 @@ function HomePage() {
                   一键移除背景，让图片更纯粹。<br />
                   AI 驱动，秒级处理，精准保留每一个细节。
                 </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-600">
+                  {user?.emailAddresses?.[0]?.emailAddress || user?.fullName || '已登录'}
+                </span>
+                <button
+                  onClick={() => signOut({})}
+                  className="text-sm text-gray-500 hover:text-gray-700 underline"
+                >
+                  退出
+                </button>
               </div>
             </div>
           </header>
