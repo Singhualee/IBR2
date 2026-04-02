@@ -145,13 +145,24 @@ function HomePage() {
                   AI 驱动，秒级处理，精准保留每一个细节。
                 </p>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-gray-600">
+              <div className="flex items-center gap-3 bg-white/5 backdrop-blur-sm border border-white/10 rounded-full px-4 py-2">
+                {user?.imageUrl ? (
+                  <img
+                    src={user.imageUrl}
+                    alt="avatar"
+                    className="w-7 h-7 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-xs font-medium text-white">
+                    {user?.firstName?.[0]?.toUpperCase() || user?.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase() || 'U'}
+                  </div>
+                )}
+                <span className="text-sm text-white/80 max-w-[180px] truncate">
                   {user?.emailAddresses?.[0]?.emailAddress || user?.fullName || '已登录'}
                 </span>
                 <button
                   onClick={() => signOut({})}
-                  className="text-sm text-gray-500 hover:text-gray-700 underline"
+                  className="text-xs text-white/40 hover:text-white/70 transition-colors"
                 >
                   退出
                 </button>
