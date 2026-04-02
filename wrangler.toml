@@ -2,5 +2,11 @@ name = "image-background-remover-api"
 main = "worker.js"
 compatibility_date = "2024-03-21"
 
+[[d1_databases]]
+binding = "ibr2_users"
+database_name = "ibr2-users"
+database_id = "026e01af-6e67-4459-b91a-efef7c7b326d"
+
 [vars]
 REMOVE_BG_API_KEY = "KohpNDWW1H1VyDQVh8yWyYui"
+VITE_CLERK_PUBLISHABLE_KEY = "pk_test_Y29uY3JldGUtc25haWwtODIuY2xlcmsuYWNjb3VudHMuZGV2JA"

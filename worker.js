@@ -1,33 +1,107 @@
 export default {
   async fetch(request, env) {
-    // 处理 OPTIONS 请求（CORS 预检）
+    const url = new URL(request.url);
+
+    // ========== /api/sync-user ==========
+    if (url.pathname === '/api/sync-user' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const { google_id, email, name, picture, access_token, refresh_token } = body;
+
+        if (!google_id || !email) {
+          return Response.json(
+            { error: 'Missing required fields: google_id, email' },
+            { status: 400, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+          );
+        }
+
+        // Upsert user (insert or update if exists)
+        const stmt = `
+          INSERT INTO users (id, google_id, email, name, picture, access_token, refresh_token, created_at, updated_at)
+          VALUES (
+            lower(hex(randomblob(16))),
+            ?1, ?2, ?3, ?4, ?5, ?6,
+            unixepoch(), unixepoch()
+          )
+          ON CONFLICT(google_id) DO UPDATE SET
+            email = excluded.email,
+            name = excluded.name,
+            picture = excluded.picture,
+            access_token = excluded.access_token,
+            refresh_token = excluded.refresh_token,
+            updated_at = unixepoch()
+        `;
+
+        const result = await env.ibr2_users
+          .prepare(stmt)
+          .bind(google_id, email, name || null, picture || null, access_token || null, refresh_token || null)
+          .run();
+
+        return Response.json(
+          { success: true, changes: result.meta.changes },
+          { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+        );
+      } catch (err) {
+        return Response.json(
+          { error: err.message || 'Internal Server Error' },
+          { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+        );
+      }
+    }
+
+    // ========== /api/get-user ==========
+    if (url.pathname === '/api/get-user' && request.method === 'GET') {
+      try {
+        const email = url.searchParams.get('email');
+        if (!email) {
+          return Response.json(
+            { error: 'Missing email parameter' },
+            { status: 400, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+          );
+        }
+
+        const user = await env.ibr2_users
+          .prepare('SELECT * FROM users WHERE email = ?1')
+          .bind(email)
+          .first();
+
+        return Response.json(
+          { user },
+          { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+        );
+      } catch (err) {
+        return Response.json(
+          { error: err.message || 'Internal Server Error' },
+          { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+        );
+      }
+    }
+
+    // ========== 处理 OPTIONS（CORS 预检）==========
     if (request.method === 'OPTIONS') {
       return new Response(null, {
         headers: {
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST',
+          'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type',
         },
       });
     }
 
-    // 处理 POST 请求（上传图片）
+    // ========== POST：上传图片（remove.bg）==========
     if (request.method === 'POST') {
       try {
         let formData;
-        
-        // 检查请求类型
+
         const contentType = request.headers.get('Content-Type');
-        
+
         if (contentType && contentType.includes('multipart/form-data')) {
-          // 处理 FormData 格式的请求
           formData = await request.formData();
-          // 检查是否有 image 字段（前端使用）或 image_file 字段（API 要求）
           let imageFile = formData.get('image');
           if (!imageFile) {
             imageFile = formData.get('image_file');
           }
-          
+
           if (!imageFile) {
             return new Response(JSON.stringify({ error: 'No image provided' }), {
               status: 400,
@@ -38,13 +112,11 @@ export default {
             });
           }
         } else {
-          // 处理直接上传的文件
           const blob = await request.blob();
           formData = new FormData();
           formData.append('image_file', blob, 'image.png');
         }
 
-        // 调用 Remove.bg API
         const removeBgResponse = await fetch('https://api.remove.bg/v1.0/removebg', {
           method: 'POST',
           headers: {
@@ -64,7 +136,6 @@ export default {
               },
             });
           } catch (e) {
-            // 如果无法解析 JSON 错误，返回原始错误信息
             const errorText = await removeBgResponse.text();
             return new Response(JSON.stringify({ error: errorText }), {
               status: removeBgResponse.status,
@@ -76,7 +147,6 @@ export default {
           }
         }
 
-        // 返回处理后的图片
         return new Response(await removeBgResponse.blob(), {
           headers: {
             'Content-Type': 'image/png',
@@ -94,7 +164,7 @@ export default {
       }
     }
 
-    // 其他请求方法返回 405
+    // 其他请求返回 405
     return new Response(JSON.stringify({ error: 'Method Not Allowed' }), {
       status: 405,
       headers: {

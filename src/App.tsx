@@ -1,8 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import { useAuth, useSignIn, useUser, SignedIn, SignedOut } from '@clerk/clerk-react';
 import SSOCallback from './SSOCallback';
+
+const WORKER_API = 'https://image-background-remover-api.scaulsh.workers.dev';
 
 function HomePage() {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
@@ -12,6 +14,28 @@ function HomePage() {
   const { isLoaded, signOut } = useAuth();
   const { signIn } = useSignIn();
   const { user } = useUser();
+
+  // 登录成功后同步用户信息到 D1
+  useEffect(() => {
+    if (!user) return;
+    const syncUser = async () => {
+      try {
+        await fetch(`${WORKER_API}/api/sync-user`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            google_id: user.id,
+            email: user.emailAddresses?.[0]?.emailAddress || '',
+            name: user.fullName || user.firstName || '',
+            picture: user.imageUrl || '',
+          }),
+        });
+      } catch (err) {
+        console.error('Failed to sync user to D1:', err);
+      }
+    };
+    syncUser();
+  }, [user]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
