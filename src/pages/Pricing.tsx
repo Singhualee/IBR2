@@ -99,24 +99,26 @@ export default function PricingPage({ currentPlan, onSubscribe, loading }: Prici
         </p>
       </div>
       
-      {/* Subscription Plans */}
-      <div className="pricing-grid">
-        {subscriptionPlans.map(plan => (
-          <PricingCard
-            key={plan.id}
-            plan={plan}
-            currentPlan={currentPlan}
-            onSubscribe={handleSubscribe}
-            loading={loading}
-          />
-        ))}
+      {/* Subscription Plans - Single Row */}
+      <div className="pricing-plans-row">
+        <div className="pricing-plans-row__grid">
+          {subscriptionPlans.map(plan => (
+            <PricingCard
+              key={plan.id}
+              plan={plan}
+              currentPlan={currentPlan}
+              onSubscribe={handleSubscribe}
+              loading={loading}
+            />
+          ))}
+        </div>
       </div>
       
-      {/* Add-on Plans */}
+      {/* Add-on Plans - Second Row */}
       <div className="pricing-addons">
         <h2 className="pricing-addons__title">Need More Credits?</h2>
         <p className="pricing-addons__subtitle">One-time purchase packs with 2-month validity</p>
-        <div className="pricing-grid pricing-grid--addon">
+        <div className="pricing-addons__row">
           {addOnPlans.map(plan => (
             <PricingCard
               key={plan.id}
@@ -179,6 +181,42 @@ export default function PricingPage({ currentPlan, onSubscribe, loading }: Prici
         .pricing-page__subtitle {
           font-size: 18px;
           color: var(--color-text-secondary);
+        }
+        
+        .pricing-plans-row {
+          width: 100%;
+          margin-bottom: 80px;
+        }
+        
+        .pricing-plans-row__grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 20px;
+        }
+        
+        .pricing-addons {
+          text-align: center;
+          width: 100%;
+        }
+        
+        .pricing-addons__title {
+          font-size: 28px;
+          font-weight: 600;
+          margin-bottom: 8px;
+        }
+        
+        .pricing-addons__subtitle {
+          font-size: 16px;
+          color: var(--color-text-secondary);
+          margin-bottom: 32px;
+        }
+        
+        .pricing-addons__row {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 20px;
+          max-width: 600px;
+          margin: 0 auto;
         }
         
         .pricing-grid {
@@ -344,22 +382,6 @@ export default function PricingPage({ currentPlan, onSubscribe, loading }: Prici
           cursor: not-allowed;
         }
         
-        .pricing-addons {
-          text-align: center;
-        }
-        
-        .pricing-addons__title {
-          font-size: 28px;
-          font-weight: 600;
-          margin-bottom: 8px;
-        }
-        
-        .pricing-addons__subtitle {
-          font-size: 16px;
-          color: var(--color-text-secondary);
-          margin-bottom: 32px;
-        }
-        
         /* Modal */
         .modal-overlay {
           position: fixed;
@@ -430,6 +452,41 @@ export default function PricingPage({ currentPlan, onSubscribe, loading }: Prici
         
         .modal__btn--confirm:hover {
           background: var(--color-accent-hover);
+        }
+        
+        /* Responsive */
+        @media (max-width: 1024px) {
+          .pricing-plans-row__grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+        
+        @media (max-width: 640px) {
+          .pricing-page {
+            padding: 40px 16px;
+          }
+          
+          .pricing-page__title {
+            font-size: 32px;
+          }
+          
+          .pricing-plans-row__grid {
+            grid-template-columns: 1fr;
+            gap: 16px;
+          }
+          
+          .pricing-addons__row {
+            grid-template-columns: 1fr;
+            gap: 16px;
+          }
+          
+          .pricing-card {
+            padding: 24px;
+          }
+          
+          .pricing-card__amount {
+            font-size: 28px;
+          }
         }
       `}</style>
     </div>
