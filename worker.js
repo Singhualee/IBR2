@@ -364,11 +364,11 @@ export default {
                 addon_a_credits = addon_a_credits + 70,
                 addon_a_expires_at = ?2,
                 updated_at = unixepoch()
-              WHERE email = ?3
+              WHERE email = ?1
             `;
             await env.ibr2_users
               .prepare(stmt)
-              .bind(expiresAt, email)
+              .bind(email, expiresAt)
               .run();
           } else if (planType === 'addon_b') {
             stmt = `
@@ -376,11 +376,11 @@ export default {
                 addon_b_credits = addon_b_credits + 110,
                 addon_b_expires_at = ?2,
                 updated_at = unixepoch()
-              WHERE email = ?3
+              WHERE email = ?1
             `;
             await env.ibr2_users
               .prepare(stmt)
-              .bind(expiresAt, email)
+              .bind(email, expiresAt)
               .run();
           }
         }

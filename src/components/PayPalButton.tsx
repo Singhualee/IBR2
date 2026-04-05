@@ -70,7 +70,11 @@ export default function PayPalButton({ planId, price: _price, isSubscription, on
       const script = document.createElement('script');
       // Use intent=subscription for subscription plans, otherwise use intent=capture for one-time
       const intent = isSubscription ? 'subscription' : 'capture';
-      script.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID}&intent=${intent}&vault=true`;
+      // Use sandbox SDK URL for testing
+      const sdkBase = PAYPAL_CLIENT_ID.includes('sandbox') || PAYPAL_CLIENT_ID.startsWith('AY') 
+        ? 'https://www.sandbox.paypal.com/sdk/js' 
+        : 'https://www.paypal.com/sdk/js';
+      script.src = `${sdkBase}?client-id=${PAYPAL_CLIENT_ID}&intent=${intent}&vault=true`;
       script.async = true;
       script.onload = () => {
         setSdkReady(true);
