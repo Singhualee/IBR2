@@ -111,9 +111,9 @@ export default function PayPalButton({ planId, price: _price, isSubscription, on
         return;
       }
 
-      buttonsConfig.createSubscription = async (_data: unknown, actions: { subscription: { create: (config: { planId: string }) => Promise<string> } }) => {
+      buttonsConfig.createSubscription = async (_data: unknown, actions: { subscription: { create: (config: { plan_id: string }) => Promise<string> } }) => {
         return actions.subscription.create({
-          planId: planIdToUse,
+          plan_id: planIdToUse,
         });
       };
 
