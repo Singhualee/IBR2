@@ -6,9 +6,9 @@ const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID || '';
 
 // PayPal plan IDs for subscriptions
 export const PAYPAL_SUBSCRIPTION_PLANS: Record<PlanType, string> = {
-  'starter': 'P-STARTER-PLAN-ID',
-  'basic': 'P-BASIC-PLAN-ID',
-  'pro': 'P-PRO-PLAN-ID',
+  'starter': 'P-7WD95306SU4076347NHJBEFQ',
+  'basic': 'P-8T826385G0579913RNHJBFPQ',
+  'pro': 'P-51165717EU111212KNHJBF3A',
   'add-on-a': '',
   'add-on-b': '',
   'free': '',
