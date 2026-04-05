@@ -111,7 +111,8 @@ export default function PayPalButton({ planId, price: _price, isSubscription, on
         return;
       }
 
-      buttonsConfig.createSubscription = async (_data: unknown, actions: { subscription: { create: (config: { plan_id: string }) => Promise<string> } }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (buttonsConfig as any).createSubscription = async (_data: unknown, actions: any) => {
         return actions.subscription.create({
           plan_id: planIdToUse,
         });
