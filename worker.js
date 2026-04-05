@@ -358,7 +358,7 @@ export default {
           const expiresAt = now + (60 * 24 * 60 * 60); // 60 days (2 months)
           
           let stmt;
-          if (planType === 'addon_a') {
+          if (planType === 'add-on-a') {
             stmt = `
               UPDATE users SET
                 addon_a_credits = addon_a_credits + 70,
@@ -370,7 +370,7 @@ export default {
               .prepare(stmt)
               .bind(email, expiresAt)
               .run();
-          } else if (planType === 'addon_b') {
+          } else if (planType === 'add-on-b') {
             stmt = `
               UPDATE users SET
                 addon_b_credits = addon_b_credits + 110,
