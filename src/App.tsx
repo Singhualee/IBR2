@@ -558,13 +558,16 @@ function PricingPageWrapper() {
     try {
       // Determine if this is a subscription or one-time payment
       const isSubscription = !['add-on-a', 'add-on-b'].includes(planId);
+      const userEmail = user?.emailAddresses?.[0]?.emailAddress;
+      
+      console.log('PayPal success:', { transactionId, planId, isSubscription, userEmail });
       
       // Call backend to set the plan based on PayPal subscription or add-on purchase
       const response = await fetch(`${WORKER_API}/api/set-plan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: user?.emailAddresses?.[0]?.emailAddress,
+          email: userEmail,
           planId: planId,
           planType: planId,
           planCredits: PLAN_CREDITS[planId],
@@ -575,10 +578,11 @@ function PricingPageWrapper() {
       });
 
       const data = await response.json();
+      console.log('Set-plan response:', data);
       
       if (data.success) {
         // Refresh quota
-        const quotaRes = await fetch(`${WORKER_API}/api/get-user?email=${encodeURIComponent(user?.emailAddresses?.[0]?.emailAddress || '')}`);
+        const quotaRes = await fetch(`${WORKER_API}/api/get-user?email=${encodeURIComponent(userEmail || '')}`);
         const quotaData = await quotaRes.json();
         
         if (quotaData.user) {
