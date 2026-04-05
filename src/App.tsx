@@ -1,21 +1,133 @@
 import { useState, useCallback, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import { useAuth, useSignIn, useUser, SignedIn, SignedOut } from '@clerk/clerk-react';
 import SSOCallback from './SSOCallback';
+import PricingPage from './pages/Pricing';
+import Dashboard from './pages/Dashboard';
+import type { PlanType, UserQuota } from './types';
 
 const WORKER_API = 'https://image-background-remover-api.scaulsh.workers.dev';
 
+// Initial empty quota state
+const emptyQuota: UserQuota = {
+  googleId: '',
+  email: '',
+  freeCredits: 3,
+  freeCreditsUsed: 0,
+  freeTrialClaimedAt: null,
+  planType: 'free',
+  planCredits: 0,
+  planCreditsUsed: 0,
+  planExpiresAt: null,
+  addOnACredits: 0,
+  addOnACreditsUsed: 0,
+  addOnAExpiresAt: null,
+  addOnBCredits: 0,
+  addOnBCreditsUsed: 0,
+  addOnBExpiresAt: null,
+  totalAvailableCredits: 0,
+  usedCredits: 0,
+};
+
+function TopNav({ 
+  showQuota = false, 
+  quota = emptyQuota,
+  onNavigateToDashboard = () => {},
+}: { 
+  showQuota?: boolean;
+  quota?: UserQuota;
+  onNavigateToDashboard?: () => void;
+}) {
+  const freeRemaining = quota.freeCredits - quota.freeCreditsUsed;
+  const planRemaining = quota.planCredits - quota.planCreditsUsed;
+  const addOnARemaining = quota.addOnACredits - quota.addOnACreditsUsed;
+  const addOnBRemaining = quota.addOnBCredits - quota.addOnBCreditsUsed;
+  const totalRemaining = freeRemaining + planRemaining + addOnARemaining + addOnBRemaining;
+  const isLow = totalRemaining < 5;
+  
+  return (
+    <nav className="top-nav">
+      <Link to="/" className="top-nav__logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <circle cx="8.5" cy="8.5" r="1.5" />
+          <path d="M21 15l-5-5L5 21" />
+        </svg>
+        <span>IBR2</span>
+      </Link>
+      
+      {showQuota && (
+        <div className="top-nav__quota" onClick={onNavigateToDashboard}>
+          <span className={`top-nav__quota-badge ${isLow ? 'top-nav__quota-badge--low' : ''}`}>
+            {totalRemaining} credits
+          </span>
+        </div>
+      )}
+      
+      <div className="top-nav__actions">
+        <Link to="/pricing" className="top-nav__link">
+          Pricing
+        </Link>
+        {showQuota && (
+          <Link to="/dashboard" className="top-nav__link">
+            Dashboard
+          </Link>
+        )}
+      </div>
+    </nav>
+  );
+}
+
 function HomePage() {
+  const { user, isLoaded } = useUser();
+  const { signIn } = useSignIn();
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [processedImage, setProcessedImage] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const { isLoaded, signOut } = useAuth();
-  const { signIn } = useSignIn();
-  const { user } = useUser();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [quota, setQuota] = useState<UserQuota>(emptyQuota);
 
-  // 登录成功后同步用户信息到 D1
+  // Fetch user quota on mount
+  useEffect(() => {
+    const fetchQuota = async () => {
+      if (!user?.emailAddresses?.[0]?.emailAddress) return;
+      
+      try {
+        const response = await fetch(`${WORKER_API}/api/get-user?email=${encodeURIComponent(user.emailAddresses[0].emailAddress)}`);
+        const data = await response.json();
+        
+        if (data.user) {
+          setQuota({
+            googleId: data.user.google_id,
+            email: data.user.email,
+            freeCredits: data.user.free_credits || 3,
+            freeCreditsUsed: data.user.free_credits_used || 0,
+            freeTrialClaimedAt: data.user.free_trial_claimed_at || null,
+            planType: data.user.plan_type || 'free',
+            planCredits: data.user.plan_credits || 0,
+            planCreditsUsed: data.user.plan_credits_used || 0,
+            planExpiresAt: data.user.plan_expires_at || null,
+            addOnACredits: data.user.addon_a_credits || 0,
+            addOnACreditsUsed: data.user.addon_a_credits_used || 0,
+            addOnAExpiresAt: data.user.addon_a_expires_at || null,
+            addOnBCredits: data.user.addon_b_credits || 0,
+            addOnBCreditsUsed: data.user.addon_b_credits_used || 0,
+            addOnBExpiresAt: data.user.addon_b_expires_at || null,
+            totalAvailableCredits: 0,
+            usedCredits: 0,
+          });
+        }
+      } catch (err) {
+        console.error('Failed to fetch quota:', err);
+      }
+    };
+    
+    fetchQuota();
+  }, [user]);
+
+  // Login success - sync user to D1
   useEffect(() => {
     if (!user) return;
     const syncUser = async () => {
@@ -40,7 +152,7 @@ function HomePage() {
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
     if (file.size > 5 * 1024 * 1024) {
-      setError('图片大小不能超过 5MB');
+      setError('Image must be less than 5MB');
       return;
     }
     setUploadedImage(URL.createObjectURL(file));
@@ -58,10 +170,32 @@ function HomePage() {
   const handleProcess = async () => {
     if (!uploadedImage) return;
 
+    // Check quota first
+    const freeRemaining = quota.freeCredits - quota.freeCreditsUsed;
+    const planRemaining = quota.planCredits - quota.planCreditsUsed;
+    const addOnARemaining = quota.addOnACredits - quota.addOnACreditsUsed;
+    const addOnBRemaining = quota.addOnBCredits - quota.addOnBCreditsUsed;
+    const totalRemaining = freeRemaining + planRemaining + addOnARemaining + addOnBRemaining;
+
+    if (totalRemaining <= 0) {
+      setShowUpgradeModal(true);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
+      // Deduct credit first
+      await fetch(`${WORKER_API}/api/deduct-credit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          google_id: user?.id,
+          email: user?.emailAddresses?.[0]?.emailAddress,
+        }),
+      });
+
       const response = await fetch(uploadedImage);
       const blob = await response.blob();
       const file = new File([blob], 'image.png', { type: 'image/png' });
@@ -69,20 +203,30 @@ function HomePage() {
       const formData = new FormData();
       formData.append('image_file', file);
 
-      const apiResponse = await fetch('https://image-background-remover-api.scaulsh.workers.dev', {
+      const apiResponse = await fetch(WORKER_API, {
         method: 'POST',
         body: formData
       });
 
       if (!apiResponse.ok) {
+        // Refund credit on failure
+        await fetch(`${WORKER_API}/api/refund-credit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            google_id: user?.id,
+            email: user?.emailAddresses?.[0]?.emailAddress,
+          }),
+        });
+        
         const errorData = await apiResponse.json();
-        throw new Error(errorData.error || '处理失败');
+        throw new Error(errorData.error || 'Processing failed');
       }
 
       const processedBlob = await apiResponse.blob();
       setProcessedImage(URL.createObjectURL(processedBlob));
     } catch (err) {
-      setError(err instanceof Error ? err.message : '处理失败');
+      setError(err instanceof Error ? err.message : 'Processing failed');
     } finally {
       setLoading(false);
     }
@@ -104,7 +248,7 @@ function HomePage() {
 
   const handleGoogleSignIn = async () => {
     if (!signIn) {
-      setError('登录服务暂不可用，请刷新页面');
+      setError('Login service unavailable. Please refresh.');
       return;
     }
     try {
@@ -115,16 +259,17 @@ function HomePage() {
       });
     } catch (err) {
       console.error('Sign in failed:', err);
-      setError('登录失败，请重试');
+      setError('Login failed. Please try again.');
     }
   };
 
   if (!isLoaded) {
     return (
       <div className="app">
+        <TopNav />
         <main className="container">
           <div className="flex items-center justify-center min-h-[60vh]">
-            <p className="text-gray-500">加载中...</p>
+            <p className="text-gray-500">Loading...</p>
           </div>
         </main>
       </div>
@@ -133,17 +278,23 @@ function HomePage() {
 
   return (
     <div className="app">
+      <TopNav 
+        showQuota={true} 
+        quota={quota}
+        onNavigateToDashboard={() => window.location.href = '/dashboard'}
+      />
+      
       <main className="container">
         <SignedOut>
           <header className="header">
-            <h1 className="title">背景移除</h1>
+            <h1 className="title">Remove Image Background</h1>
             <p className="subtitle">
-              一键移除背景，让图片更纯粹。<br />
-              AI 驱动，秒级处理，精准保留每一个细节。
+              One-click background removal powered by AI.<br />
+              Fast, precise, and free to try.
             </p>
           </header>
           <div className="flex flex-col items-center justify-center py-12 gap-4">
-            <p className="text-gray-500 mb-2">登录后即可使用</p>
+            <p className="text-gray-500 mb-2">Sign in to start</p>
             <button
               onClick={handleGoogleSignIn}
               className="btn btn-primary flex items-center gap-2"
@@ -154,44 +305,18 @@ function HomePage() {
                 <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
               </svg>
-              使用 Google 登录
+              Continue with Google
             </button>
           </div>
         </SignedOut>
 
         <SignedIn>
           <header className="header">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="title">背景移除</h1>
-                <p className="subtitle">
-                  一键移除背景，让图片更纯粹。<br />
-                  AI 驱动，秒级处理，精准保留每一个细节。
-                </p>
-              </div>
-              <div className="flex items-center gap-3 bg-white/5 backdrop-blur-sm border border-white/10 rounded-full px-4 py-2">
-                {user?.imageUrl ? (
-                  <img
-                    src={user.imageUrl}
-                    alt="avatar"
-                    className="w-7 h-7 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-xs font-medium text-white">
-                    {user?.firstName?.[0]?.toUpperCase() || user?.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase() || 'U'}
-                  </div>
-                )}
-                <span className="text-sm text-white/80 max-w-[180px] truncate">
-                  {user?.emailAddresses?.[0]?.emailAddress || user?.fullName || '已登录'}
-                </span>
-                <button
-                  onClick={() => signOut({})}
-                  className="text-xs text-white/40 hover:text-white/70 transition-colors"
-                >
-                  退出
-                </button>
-              </div>
-            </div>
+            <h1 className="title">Remove Image Background</h1>
+            <p className="subtitle">
+              One-click background removal powered by AI.<br />
+              Fast, precise, and free to try.
+            </p>
           </header>
 
           {!uploadedImage ? (
@@ -206,9 +331,9 @@ function HomePage() {
                 </svg>
               </div>
               <p className="dropzone-text">
-                {isDragActive ? '松开以上传' : '点击上传或拖放图片'}
+                {isDragActive ? 'Drop image here' : 'Click or drag to upload'}
               </p>
-              <p className="dropzone-hint">支持 JPG、PNG、WebP，最大 5MB</p>
+              <p className="dropzone-hint">JPG, PNG, WebP up to 5MB</p>
             </section>
           ) : (
             <section className="workspace">
@@ -221,18 +346,18 @@ function HomePage() {
               <div className="images-grid">
                 <div className="image-card">
                   <div className="image-wrapper checkerboard">
-                    <img src={uploadedImage} alt="原图" />
+                    <img src={uploadedImage} alt="Original" />
                   </div>
-                  <p className="image-label">原图</p>
+                  <p className="image-label">Original</p>
                 </div>
 
                 <div className="image-card">
                   {processedImage ? (
                     <>
                       <div className="image-wrapper checkerboard">
-                        <img src={processedImage} alt="处理后" />
+                        <img src={processedImage} alt="Processed" />
                       </div>
-                      <p className="image-label">已移除背景</p>
+                      <p className="image-label">Background Removed</p>
                     </>
                   ) : (
                     <div className="image-placeholder">
@@ -241,10 +366,10 @@ function HomePage() {
                           <svg viewBox="0 0 24 24" className="spinner-icon">
                             <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none" strokeDasharray="60" strokeLinecap="round" />
                           </svg>
-                          <p>处理中...</p>
+                          <p>Processing...</p>
                         </div>
                       ) : (
-                        <p>等待处理</p>
+                        <p>Waiting</p>
                       )}
                     </div>
                   )}
@@ -259,23 +384,23 @@ function HomePage() {
                       disabled={loading}
                       className="btn btn-primary"
                     >
-                      {loading ? '处理中...' : '移除背景'}
+                      {loading ? 'Processing...' : 'Remove Background'}
                     </button>
                     <button
                       onClick={handleReset}
                       disabled={loading}
                       className="btn btn-secondary"
                     >
-                      重新上传
+                      Upload New
                     </button>
                   </>
                 ) : (
                   <>
                     <button onClick={handleDownload} className="btn btn-primary">
-                      下载图片
+                      Download Image
                     </button>
                     <button onClick={handleReset} className="btn btn-secondary">
-                      处理新图片
+                      Process New
                     </button>
                   </>
                 )}
@@ -286,8 +411,156 @@ function HomePage() {
       </main>
 
       <footer className="footer">
-        <p>AI 智能背景移除</p>
+        <p>AI Background Removal</p>
       </footer>
+
+      {/* Upgrade Modal */}
+      {showUpgradeModal && (
+        <div className="modal-overlay" onClick={() => setShowUpgradeModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3 className="modal__title">Credits Exhausted</h3>
+            <p className="modal__text">
+              You have no credits remaining. Please upgrade your plan to continue.
+            </p>
+            <div className="modal__actions">
+              <button className="modal__btn modal__btn--cancel" onClick={() => setShowUpgradeModal(false)}>
+                Cancel
+              </button>
+              <button className="modal__btn modal__btn--confirm" onClick={() => window.location.href = '/pricing'}>
+                View Plans
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DashboardPage() {
+  const { user, isLoaded } = useUser();
+  const { signOut } = useAuth();
+  const [quota, setQuota] = useState<UserQuota>(emptyQuota);
+
+  useEffect(() => {
+    const fetchQuota = async () => {
+      if (!user?.emailAddresses?.[0]?.emailAddress) return;
+      
+      try {
+        const response = await fetch(`${WORKER_API}/api/get-user?email=${encodeURIComponent(user.emailAddresses[0].emailAddress)}`);
+        const data = await response.json();
+        
+        if (data.user) {
+          setQuota({
+            googleId: data.user.google_id,
+            email: data.user.email,
+            freeCredits: data.user.free_credits || 3,
+            freeCreditsUsed: data.user.free_credits_used || 0,
+            freeTrialClaimedAt: data.user.free_trial_claimed_at || null,
+            planType: data.user.plan_type || 'free',
+            planCredits: data.user.plan_credits || 0,
+            planCreditsUsed: data.user.plan_credits_used || 0,
+            planExpiresAt: data.user.plan_expires_at || null,
+            addOnACredits: data.user.addon_a_credits || 0,
+            addOnACreditsUsed: data.user.addon_a_credits_used || 0,
+            addOnAExpiresAt: data.user.addon_a_expires_at || null,
+            addOnBCredits: data.user.addon_b_credits || 0,
+            addOnBCreditsUsed: data.user.addon_b_credits_used || 0,
+            addOnBExpiresAt: data.user.addon_b_expires_at || null,
+            totalAvailableCredits: 0,
+            usedCredits: 0,
+          });
+        }
+      } catch (err) {
+        console.error('Failed to fetch quota:', err);
+      }
+    };
+    
+    fetchQuota();
+  }, [user]);
+
+  if (!isLoaded) {
+    return <div className="app"><main className="container"><p>Loading...</p></main></div>;
+  }
+
+  return (
+    <Dashboard
+      userEmail={user?.emailAddresses?.[0]?.emailAddress || ''}
+      userName={user?.fullName || user?.firstName || ''}
+      userPicture={user?.imageUrl}
+      quota={quota}
+      onNavigateToPricing={() => window.location.href = '/pricing'}
+      onLogout={() => signOut()}
+    />
+  );
+}
+
+function PricingPageWrapper() {
+  const { user, isLoaded } = useUser();
+  const [quota, setQuota] = useState<UserQuota>(emptyQuota);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchQuota = async () => {
+      if (!user?.emailAddresses?.[0]?.emailAddress) return;
+      
+      try {
+        const response = await fetch(`${WORKER_API}/api/get-user?email=${encodeURIComponent(user.emailAddresses[0].emailAddress)}`);
+        const data = await response.json();
+        
+        if (data.user) {
+          setQuota({
+            googleId: data.user.google_id,
+            email: data.user.email,
+            freeCredits: data.user.free_credits || 3,
+            freeCreditsUsed: data.user.free_credits_used || 0,
+            freeTrialClaimedAt: data.user.free_trial_claimed_at || null,
+            planType: data.user.plan_type || 'free',
+            planCredits: data.user.plan_credits || 0,
+            planCreditsUsed: data.user.plan_credits_used || 0,
+            planExpiresAt: data.user.plan_expires_at || null,
+            addOnACredits: data.user.addon_a_credits || 0,
+            addOnACreditsUsed: data.user.addon_a_credits_used || 0,
+            addOnAExpiresAt: data.user.addon_a_expires_at || null,
+            addOnBCredits: data.user.addon_b_credits || 0,
+            addOnBCreditsUsed: data.user.addon_b_credits_used || 0,
+            addOnBExpiresAt: data.user.addon_b_expires_at || null,
+            totalAvailableCredits: 0,
+            usedCredits: 0,
+          });
+        }
+      } catch (err) {
+        console.error('Failed to fetch quota:', err);
+      }
+    };
+    
+    fetchQuota();
+  }, [user]);
+
+  const handleSubscribe = async (planId: PlanType) => {
+    setLoading(true);
+    // TODO: Integrate with PayPal checkout
+    console.log('Subscribe to plan:', planId);
+    alert(`PayPal checkout coming soon for plan: ${planId}`);
+    setLoading(false);
+  };
+
+  if (!isLoaded) {
+    return <div className="app"><main className="container"><p>Loading...</p></main></div>;
+  }
+
+  return (
+    <div className="app">
+      <TopNav 
+        showQuota={!!user}
+        quota={quota}
+        onNavigateToDashboard={() => window.location.href = '/dashboard'}
+      />
+      <PricingPage 
+        currentPlan={quota.planType}
+        onSubscribe={handleSubscribe}
+        loading={loading}
+      />
     </div>
   );
 }
@@ -297,6 +570,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/sso-callback" element={<SSOCallback />} />
+        <Route path="/pricing" element={<PricingPageWrapper />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/" element={<HomePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
