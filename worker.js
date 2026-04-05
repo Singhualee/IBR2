@@ -321,7 +321,7 @@ export default {
     if (url.pathname === '/api/set-plan' && request.method === 'POST') {
       try {
         const body = await request.json();
-        const { email, planType, planCredits, addonType, addonCredits } = body;
+        const { email, planType, planCredits, isSubscription, subscriptionId, orderId } = body;
 
         if (!email) {
           return Response.json(
@@ -332,8 +332,8 @@ export default {
 
         const now = Math.floor(Date.now() / 1000);
         
-        // Determine what to update based on plan type
-        if (planType) {
+        // Handle subscription plans
+        if (isSubscription && planType && planCredits) {
           // Monthly subscription (resets monthly)
           const expiresAt = now + (30 * 24 * 60 * 60); // 30 days
           
@@ -353,33 +353,34 @@ export default {
             .run();
         }
         
-        if (addonType && addonCredits) {
-          // Add-on (2 months validity)
-          const expiresAt = now + (60 * 24 * 60 * 60); // 60 days
+        // Handle add-on purchases (one-time payments)
+        if (!isSubscription && planType) {
+          const expiresAt = now + (60 * 24 * 60 * 60); // 60 days (2 months)
           
           let stmt;
-          if (addonType === 'addon_a') {
+          if (planType === 'addon_a') {
             stmt = `
               UPDATE users SET
-                addon_a_credits = addon_a_credits + ?3,
-                addon_a_expires_at = ?4,
+                addon_a_credits = addon_a_credits + 70,
+                addon_a_expires_at = ?2,
                 updated_at = unixepoch()
-              WHERE email = ?1
+              WHERE email = ?3
             `;
-          } else if (addonType === 'addon_b') {
-            stmt = `
-              UPDATE users SET
-                addon_b_credits = addon_b_credits + ?3,
-                addon_b_expires_at = ?4,
-                updated_at = unixepoch()
-              WHERE email = ?1
-            `;
-          }
-          
-          if (stmt) {
             await env.ibr2_users
               .prepare(stmt)
-              .bind(email, addonType, addonCredits, expiresAt)
+              .bind(expiresAt, email)
+              .run();
+          } else if (planType === 'addon_b') {
+            stmt = `
+              UPDATE users SET
+                addon_b_credits = addon_b_credits + 110,
+                addon_b_expires_at = ?2,
+                updated_at = unixepoch()
+              WHERE email = ?3
+            `;
+            await env.ibr2_users
+              .prepare(stmt)
+              .bind(expiresAt, email)
               .run();
           }
         }

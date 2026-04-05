@@ -1,5 +1,15 @@
 import { useState } from 'react';
 import { PLANS, formatPrice, type Plan, type PlanType } from '../types';
+import PayPalButton from '../components/PayPalButton';
+
+interface PricingCardProps {
+  plan: Plan;
+  currentPlan?: PlanType;
+  onSubscribe: (planId: PlanType) => void;
+  loading?: boolean;
+  onPayPalSuccess?: (transactionId: string, planId: PlanType) => void;
+  onPayPalError?: (error: string) => void;
+}
 
 interface PricingCardProps {
   plan: Plan;
@@ -8,9 +18,16 @@ interface PricingCardProps {
   loading?: boolean;
 }
 
-function PricingCard({ plan, currentPlan, onSubscribe, loading }: PricingCardProps) {
+function PricingCard({ plan, currentPlan, onSubscribe, loading, onPayPalSuccess, onPayPalError }: PricingCardProps) {
   const isCurrentPlan = currentPlan === plan.id;
   const isFree = plan.id === 'free';
+  const [showPayPal, setShowPayPal] = useState(false);
+  
+  const handleSubscribe = () => {
+    if (plan.id === 'free') return;
+    setShowPayPal(true);
+    onSubscribe(plan.id);
+  };
   
   return (
     <div className={`pricing-card ${plan.highlight ? 'pricing-card--highlight' : ''} ${isCurrentPlan ? 'pricing-card--current' : ''}`}>
@@ -53,13 +70,34 @@ function PricingCard({ plan, currentPlan, onSubscribe, loading }: PricingCardPro
         </div>
       </div>
       
-      <button
-        className={`pricing-card__btn ${plan.highlight ? 'pricing-card__btn--primary' : 'pricing-card__btn--secondary'}`}
-        onClick={() => onSubscribe(plan.id)}
-        disabled={loading || isCurrentPlan || isFree}
-      >
-        {isCurrentPlan ? 'Current Plan' : isFree ? 'Included' : loading ? 'Loading...' : 'Subscribe'}
-      </button>
+      {isFree ? (
+        <div className="pricing-card__btn pricing-card__btn--disabled">
+          Included
+        </div>
+      ) : isCurrentPlan ? (
+        <div className="pricing-card__btn pricing-card__btn--disabled">
+          Current Plan
+        </div>
+      ) : showPayPal ? (
+        <div className="pricing-card__paypal">
+          <PayPalButton
+            planId={plan.id}
+            price={formatPrice(plan.price)}
+            isSubscription={!plan.isAddOn}
+            onSuccess={onPayPalSuccess || (() => {})}
+            onError={onPayPalError || (() => {})}
+            disabled={loading}
+          />
+        </div>
+      ) : (
+        <button
+          className={`pricing-card__btn ${plan.highlight ? 'pricing-card__btn--primary' : 'pricing-card__btn--secondary'}`}
+          onClick={handleSubscribe}
+          disabled={loading}
+        >
+          {loading ? 'Loading...' : 'Subscribe'}
+        </button>
+      )}
     </div>
   );
 }
@@ -67,10 +105,12 @@ function PricingCard({ plan, currentPlan, onSubscribe, loading }: PricingCardPro
 interface PricingPageProps {
   currentPlan?: PlanType;
   onSubscribe: (planId: PlanType) => void;
+  onPayPalSuccess?: (subscriptionId: string, planId: PlanType) => void;
+  onPayPalError?: (error: string) => void;
   loading?: boolean;
 }
 
-export default function PricingPage({ currentPlan, onSubscribe, loading }: PricingPageProps) {
+export default function PricingPage({ currentPlan, onSubscribe, onPayPalSuccess, onPayPalError, loading }: PricingPageProps) {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<PlanType | null>(null);
   
@@ -108,6 +148,8 @@ export default function PricingPage({ currentPlan, onSubscribe, loading }: Prici
               plan={plan}
               currentPlan={currentPlan}
               onSubscribe={handleSubscribe}
+              onPayPalSuccess={onPayPalSuccess}
+              onPayPalError={onPayPalError}
               loading={loading}
             />
           ))}
@@ -125,6 +167,8 @@ export default function PricingPage({ currentPlan, onSubscribe, loading }: Prici
               plan={plan}
               currentPlan={currentPlan}
               onSubscribe={handleSubscribe}
+              onPayPalSuccess={onPayPalSuccess}
+              onPayPalError={onPayPalError}
               loading={loading}
             />
           ))}
@@ -380,6 +424,24 @@ export default function PricingPage({ currentPlan, onSubscribe, loading }: Prici
         .pricing-card__btn:disabled {
           opacity: 0.5;
           cursor: not-allowed;
+        }
+        
+        .pricing-card__btn--disabled {
+          width: 100%;
+          padding: 14px 24px;
+          font-size: 16px;
+          font-weight: 600;
+          border-radius: 12px;
+          border: none;
+          background: rgba(255, 255, 255, 0.05);
+          color: var(--color-text-secondary);
+          text-align: center;
+          cursor: default;
+          margin-top: auto;
+        }
+        
+        .pricing-card__paypal {
+          margin-top: auto;
         }
         
         /* Modal */

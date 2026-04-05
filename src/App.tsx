@@ -498,7 +498,18 @@ function DashboardPage() {
 function PricingPageWrapper() {
   const { user, isLoaded } = useUser();
   const [quota, setQuota] = useState<UserQuota>(emptyQuota);
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false);
+  const [paypalLoading, setPaypalLoading] = useState(false);
+
+  // Plan credits mapping
+  const PLAN_CREDITS: Record<PlanType, number> = {
+    'starter': 10,
+    'basic': 30,
+    'pro': 100,
+    'add-on-a': 70,
+    'add-on-b': 110,
+    'free': 3,
+  };
 
   useEffect(() => {
     const fetchQuota = async () => {
@@ -537,12 +548,77 @@ function PricingPageWrapper() {
     fetchQuota();
   }, [user]);
 
-  const handleSubscribe = async (planId: PlanType) => {
-    setLoading(true);
-    // TODO: Integrate with PayPal checkout
-    console.log('Subscribe to plan:', planId);
-    alert(`PayPal checkout coming soon for plan: ${planId}`);
-    setLoading(false);
+  const handleSubscribe = async (_planId: PlanType) => {
+    // PayPal button will be shown, no action needed here
+  };
+
+  const handlePayPalSuccess = async (transactionId: string, planId: PlanType) => {
+    setPaypalLoading(true);
+    
+    try {
+      // Determine if this is a subscription or one-time payment
+      const isSubscription = !['add-on-a', 'add-on-b'].includes(planId);
+      
+      // Call backend to set the plan based on PayPal subscription or add-on purchase
+      const response = await fetch(`${WORKER_API}/api/set-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user?.emailAddresses?.[0]?.emailAddress,
+          planId: planId,
+          planType: planId,
+          planCredits: PLAN_CREDITS[planId],
+          subscriptionId: isSubscription ? transactionId : undefined,
+          orderId: !isSubscription ? transactionId : undefined,
+          isSubscription: isSubscription,
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Refresh quota
+        const quotaRes = await fetch(`${WORKER_API}/api/get-user?email=${encodeURIComponent(user?.emailAddresses?.[0]?.emailAddress || '')}`);
+        const quotaData = await quotaRes.json();
+        
+        if (quotaData.user) {
+          setQuota({
+            googleId: quotaData.user.google_id,
+            email: quotaData.user.email,
+            freeCredits: quotaData.user.free_credits || 3,
+            freeCreditsUsed: quotaData.user.free_credits_used || 0,
+            freeTrialClaimedAt: quotaData.user.free_trial_claimed_at || null,
+            planType: quotaData.user.plan_type || 'free',
+            planCredits: quotaData.user.plan_credits || 0,
+            planCreditsUsed: quotaData.user.plan_credits_used || 0,
+            planExpiresAt: quotaData.user.plan_expires_at || null,
+            addOnACredits: quotaData.user.addon_a_credits || 0,
+            addOnACreditsUsed: quotaData.user.addon_a_credits_used || 0,
+            addOnAExpiresAt: quotaData.user.addon_a_expires_at || null,
+            addOnBCredits: quotaData.user.addon_b_credits || 0,
+            addOnBCreditsUsed: quotaData.user.addon_b_credits_used || 0,
+            addOnBExpiresAt: quotaData.user.addon_b_expires_at || null,
+            totalAvailableCredits: 0,
+            usedCredits: 0,
+          });
+        }
+        
+        alert('Subscription successful! Your credits have been updated.');
+        window.location.href = '/dashboard';
+      } else {
+        alert('Subscription recorded but quota update failed. Please contact support.');
+      }
+    } catch (err) {
+      console.error('Failed to set plan:', err);
+      alert('Failed to process subscription. Please contact support.');
+    } finally {
+      setPaypalLoading(false);
+    }
+  };
+
+  const handlePayPalError = (error: string) => {
+    console.error('PayPal error:', error);
+    alert(`Payment failed: ${error}`);
   };
 
   if (!isLoaded) {
@@ -559,7 +635,9 @@ function PricingPageWrapper() {
       <PricingPage 
         currentPlan={quota.planType}
         onSubscribe={handleSubscribe}
-        loading={loading}
+        onPayPalSuccess={handlePayPalSuccess}
+        onPayPalError={handlePayPalError}
+        loading={loading || paypalLoading}
       />
     </div>
   );
